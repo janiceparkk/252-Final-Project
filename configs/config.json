@@ -1,0 +1,17 @@
+{
+    "spatial": {
+        "lat_min": 25.0,
+        "lat_max": 45.0,
+        "lon_min": -75.0,
+        "lon_max": -45.0,
+        "grid_resolution": 0.08333333
+    },
+    "depth": {
+        "depth_min_m": 0.0,
+        "depth_max_m": 5.5
+    },
+    "temporal": {
+        "start_date": "2015-01-01",
+        "end_date": "2024-12-31"
+    }
+}
