@@ -15,7 +15,7 @@ def load_config():
         return json.load(f)
 
 
-def download_glorys(config: dict, output_dir: Path):
+def download_glorys(config, output_dir):
     output_dir.mkdir(parents=True, exist_ok=True)
     output_file = output_dir / "glorys_gulfstream_2015_2024.nc"
 
@@ -41,7 +41,7 @@ def download_glorys(config: dict, output_dir: Path):
     )
 
 
-def download_era5(config: dict, output_dir: Path):
+def download_era5(config, output_dir):
     output_dir.mkdir(parents=True, exist_ok=True)
     c = cdsapi.Client(url=os.getenv("CDSAPI_URL"), key=os.getenv("CDSAPI_KEY"))
 
