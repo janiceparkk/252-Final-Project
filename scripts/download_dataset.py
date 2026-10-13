@@ -1,8 +1,12 @@
+import os
 import json
 from pathlib import Path
+from dotenv import load_dotenv
+
 import cdsapi
 import copernicusmarine
 
+load_dotenv()
 CONFIG_PATH = Path("../configs/config.json")
 
 
@@ -15,8 +19,11 @@ def download_glorys(config: dict, output_dir: Path):
     output_dir.mkdir(parents=True, exist_ok=True)
     output_file = output_dir / "glorys_gulfstream_2015_2024.nc"
 
+    if output_file.exists():
+        return
+
     copernicusmarine.subset(
-        dataset_id="cmems_mod_glo_phy_my_001_030",
+        dataset_id="cmems_mod_glo_phy_my_0.083deg_P1D-m",
         variables=["zos", "thetao", "uo", "vo"],
         minimum_longitude=config["spatial"]["lon_min"],
         maximum_longitude=config["spatial"]["lon_max"],
@@ -28,46 +35,52 @@ def download_glorys(config: dict, output_dir: Path):
         maximum_depth=config["depth"]["depth_max_m"],
         output_filename=output_file.name,
         output_directory=str(output_dir),
+        username=os.getenv("COPERNICUSMARINE_USERNAME"),
+        password=os.getenv("COPERNICUSMARINE_PASSWORD"),
         force_download=True,
     )
 
 
 def download_era5(config: dict, output_dir: Path):
     output_dir.mkdir(parents=True, exist_ok=True)
-    output_file = output_dir / "era5_gulfstream_2015_2024.nc"
+    c = cdsapi.Client(url=os.getenv("CDSAPI_URL"), key=os.getenv("CDSAPI_KEY"))
 
-    c = cdsapi.Client()
     start_year = int(config["temporal"]["start_date"].split("-")[0])
     end_year = int(config["temporal"]["end_date"].split("-")[0])
 
-    c.retrieve(
-        "reanalysis-era5-single-levels",
-        {
-            "product_type": "reanalysis",
-            "format": "netcdf",
-            "variable": [
-                "2m_temperature",
-                "2m_dewpoint_temperature",
-                "10m_u_component_of_wind",
-                "10m_v_component_of_wind",
-            ],
-            "year": [str(y) for y in range(start_year, end_year + 1)],
-            "month": [f"{m:02d}" for m in range(1, 13)],
-            "day": [f"{d:02d}" for d in range(1, 32)],
-            "time": [f"{h:02d}:00" for h in range(0, 24)],
-            "area": [
-                config["spatial"]["lat_max"],
-                config["spatial"]["lon_min"],
-                config["spatial"]["lat_min"],
-                config["spatial"]["lon_max"],
-            ],
-            "grid": [
-                config["spatial"]["grid_resolution"],
-                config["spatial"]["grid_resolution"],
-            ],
-        },
-        str(output_file),
-    )
+    for year in range(start_year, end_year + 1):
+        year_str = str(year)
+        for month in range(1, 13):
+            month_str = f"{month:02d}"
+            output_file = output_dir / f"era5_gulfstream_{year_str}_{month_str}.nc"
+
+            if output_file.exists():
+                continue
+
+            c.retrieve(
+                "reanalysis-era5-single-levels",
+                {
+                    "product_type": "reanalysis",
+                    "format": "netcdf",
+                    "variable": [
+                        "2m_temperature",
+                        "2m_dewpoint_temperature",
+                        "10m_u_component_of_wind",
+                        "10m_v_component_of_wind",
+                    ],
+                    "year": year_str,
+                    "month": month_str,
+                    "day": [f"{d:02d}" for d in range(1, 32)],
+                    "time": [f"{h:02d}:00" for h in range(0, 24)],
+                    "area": [
+                        config["spatial"]["lat_max"],
+                        config["spatial"]["lon_min"],
+                        config["spatial"]["lat_min"],
+                        config["spatial"]["lon_max"],
+                    ],
+                },
+                str(output_file),
+            )
 
 
 if __name__ == "__main__":
