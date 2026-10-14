@@ -4,7 +4,7 @@ This project uses the [ERA5](https://cds.climate.copernicus.eu/datasets/reanalys
 
 ## Installing Dependencies
 ```bash
-pip install "numpy<2.0" copernicusmarine cdsapi chardet python-dotenv xarray netCDF4 scipy dask
+pip install "numpy<2.0" copernicusmarine cdsapi chardet python-dotenv xarray netCDF4 scipy dask torch torchvision torchaudio
 ```
 
 ## Downloading the Datasets
