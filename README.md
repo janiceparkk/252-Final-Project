@@ -16,3 +16,8 @@ python scripts/download_dataset.py
 ```python
 python scripts/process_data.py
 ```
+
+## Running a Mock Test
+```python
+python -m tests.REPLACE_WITH_TEST_NAME
+```
