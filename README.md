@@ -21,3 +21,13 @@ python scripts/process_data.py
 ```python
 python -m tests.REPLACE_WITH_TEST_NAME
 ```
+
+## Running Swin-Transformer Training
+```python
+PYTORCH_MPS_HIGH_WATERMARK_RATIO=0.0 caffeinate -i "$(python -c 'import sys; print(sys.executable)')" -m src.train
+```
+
+## Running Baseline Training
+```python
+PYTORCH_MPS_HIGH_WATERMARK_RATIO=0.0 caffeinate -i "$(python -c 'import sys; print(sys.executable)')" -m src.train_unet
+```
