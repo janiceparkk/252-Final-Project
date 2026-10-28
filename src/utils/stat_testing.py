@@ -1,113 +1,129 @@
 import numpy as np
-from scipy import stats
 import torch
+from scipy import stats
 
 
-def autocovariance(d, d_bar, k):
-    if k == 0:
-        return float(np.mean((d - d_bar) ** 2))
-    return float(np.mean((d[k:] - d_bar) * (d[:-k] - d_bar)))
-
-
-def diebold_mariano_test(
-    loss_a,
-    loss_b,
-    h=1,
-):
+def autocovariance(d: np.ndarray, d_bar: float, k: int):
     """
-    Evaluates the null hypothesis
-
-    Args:
-        loss_a: Loss time series for Baseline Model
-        loss_b: Loss time series for Proposed Model
-        h: Forecast days
-
-    Returns:
-        dm_stat: Diebold-Mariano test statistic
-        p_value: Two-tailed p-value
+    Computes sample autocovariance at lag k.
     """
-    if isinstance(loss_a, torch.Tensor):
-        loss_a = loss_a.detach().cpu().numpy()
-    if isinstance(loss_b, torch.Tensor):
-        loss_b = loss_b.detach().cpu().numpy()
+    T = len(d)
+    k_int = int(k)
+    if k_int >= T:
+        return 0.0
+    return float(np.sum((d[k_int:] - d_bar) * (d[: T - k_int] - d_bar)) / T)
 
+
+def diebold_mariano_test(preds_a, preds_b, targets, h: int = 1):
+    """
+    Diebold-Mariano test comparing time-series forecast accuracy.
+    Accepts 1D vectors or multi-dimensional spatial prediction tensors.
+    """
+    pa = (
+        preds_a.detach().cpu().numpy()
+        if isinstance(preds_a, torch.Tensor)
+        else np.asarray(preds_a)
+    )
+    pb = (
+        preds_b.detach().cpu().numpy()
+        if isinstance(preds_b, torch.Tensor)
+        else np.asarray(preds_b)
+    )
+    tg = (
+        targets.detach().cpu().numpy()
+        if isinstance(targets, torch.Tensor)
+        else np.asarray(targets)
+    )
+
+    # Compute mean loss per timestep across spatial and channel dimensions
+    if pa.ndim > 1:
+        spatial_axes = tuple(range(1, pa.ndim))
+        loss_a = np.mean((tg - pa) ** 2, axis=spatial_axes)
+        loss_b = np.mean((tg - pb) ** 2, axis=spatial_axes)
+    else:
+        loss_a = (tg - pa) ** 2
+        loss_b = (tg - pb) ** 2
+
+    # Loss differential time-series
     d = loss_a - loss_b
     T = len(d)
     d_bar = float(np.mean(d))
 
-    gamma_0 = autocovariance(d, d_bar, 0)
-    sum_gamma = sum(autocovariance(d, d_bar, k) for k in range(1, h))
+    h_int = int(h)
 
-    variance = (gamma_0 + 2.0 * sum_gamma) / T
+    if h_int <= 1:
+        gamma_0 = autocovariance(d, d_bar, 0)
+        var_d = gamma_0 / T
+    else:
+        gamma_0 = autocovariance(d, d_bar, 0)
+        sum_gamma = sum(autocovariance(d, d_bar, k) for k in range(1, h_int))
+        var_d = (gamma_0 + 2 * sum_gamma) / T
 
-    if variance <= 1e-12:
+    if var_d <= 0:
         return 0.0, 1.0
 
-    dm_stat = d_bar / np.sqrt(variance)
-    p_value = 2.0 * (1.0 - stats.norm.cdf(np.abs(dm_stat)))
+    dm_stat = float(d_bar / np.sqrt(var_d))
+    p_value = float(2 * (1 - stats.norm.cdf(abs(dm_stat))))
 
-    return float(dm_stat), float(p_value)
+    return dm_stat, p_value
 
 
 def spatial_block_bootstrap(
     metric_a,
     metric_b,
-    block_size=(60, 60),
-    num_iterations=1000,
-    seed=42,
+    block_size: tuple[int, int] = (60, 60),
+    num_iterations: int = 1000,
+    seed: int = 42,
 ):
     """
-    Args:
-        metric_a: Spatial metric map for Model A [..., H, W]
-        metric_b: Spatial metric map for Model B [..., H, W]
-        block_size: (block_h, block_w)
-        num_iterations: Number of bootstrap sampling iterations
-        seed: Random seed
-
-    Returns:
-        p_boot: Empirical bootstrapped p-value
-        ci_95: 95% confidence interval tuple (CI_2.5%, CI_97.5%)
+    Executes spatial block bootstrapping on 2D error maps [H, W].
+    Returns empirical bootstrapped p-value and 95% confidence interval.
     """
-    if isinstance(metric_a, torch.Tensor):
-        metric_a = metric_a.detach().cpu().numpy()
-    if isinstance(metric_b, torch.Tensor):
-        metric_b = metric_b.detach().cpu().numpy()
+    ma = (
+        metric_a.detach().cpu().numpy()
+        if isinstance(metric_a, torch.Tensor)
+        else np.asarray(metric_a)
+    )
+    mb = (
+        metric_b.detach().cpu().numpy()
+        if isinstance(metric_b, torch.Tensor)
+        else np.asarray(metric_b)
+    )
+
+    # Reduce spatial metric maps to 2D grid (H, W) if necessary
+    if ma.ndim > 2:
+        ma = np.mean(ma, axis=tuple(range(0, ma.ndim - 2)))
+    if mb.ndim > 2:
+        mb = np.mean(mb, axis=tuple(range(0, mb.ndim - 2)))
+
+    diff_map = ma - mb
+    H, W = diff_map.shape
+    bh, bw = int(block_size[0]), int(block_size[1])
 
     np.random.seed(seed)
-    h, w = metric_a.shape[-2:]
-    block_h, block_w = block_size
 
-    n_blocks_h = h // block_h
-    n_blocks_w = w // block_w
+    n_blocks_h = max(1, H // bh)
+    n_blocks_w = max(1, W // bw)
 
-    blocks_a = []
-    blocks_b = []
-
+    blocks = []
     for i in range(n_blocks_h):
         for j in range(n_blocks_w):
-            r_start, r_end = i * block_h, (i + 1) * block_h
-            c_start, c_end = j * block_w, (j + 1) * block_w
+            r_start, r_end = i * bh, min((i + 1) * bh, H)
+            c_start, c_end = j * bw, min((j + 1) * bw, W)
+            blocks.append(diff_map[r_start:r_end, c_start:c_end])
 
-            blocks_a.append(metric_a[..., r_start:r_end, c_start:c_end])
-            blocks_b.append(metric_b[..., r_start:r_end, c_start:c_end])
+    num_blocks = len(blocks)
+    boot_means = np.zeros(num_iterations)
 
-    num_blocks = len(blocks_a)
-    diff_bootstrap = []
+    for b in range(num_iterations):
+        sampled_indices = np.random.choice(num_blocks, size=num_blocks, replace=True)
+        boot_sample = np.concatenate([blocks[idx].ravel() for idx in sampled_indices])
+        boot_means[b] = np.mean(boot_sample)
 
-    for _ in range(num_iterations):
-        indices = np.random.choice(num_blocks, size=num_blocks, replace=True)
+    orig_mean = float(np.mean(diff_map))
+    p_boot = float(np.mean(np.abs(boot_means - orig_mean) >= np.abs(orig_mean)))
 
-        sample_a = np.mean([blocks_a[idx] for idx in indices])
-        sample_b = np.mean([blocks_b[idx] for idx in indices])
+    ci_lower = float(np.percentile(boot_means, 2.5))
+    ci_upper = float(np.percentile(boot_means, 97.5))
 
-        diff_bootstrap.append(sample_b - sample_a)
-
-    diff_bootstrap = np.array(diff_bootstrap)
-
-    # Empirical p-value: Fraction of samples where Model B failed to improve over Model A
-    p_boot = float(np.mean(diff_bootstrap >= 0.0))
-
-    ci_low = float(np.percentile(diff_bootstrap, 2.5))
-    ci_high = float(np.percentile(diff_bootstrap, 97.5))
-
-    return p_boot, (ci_low, ci_high)
+    return p_boot, (ci_lower, ci_upper)

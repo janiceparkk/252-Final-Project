@@ -31,3 +31,8 @@ PYTORCH_MPS_HIGH_WATERMARK_RATIO=0.0 caffeinate -i "$(python -c 'import sys; pri
 ```python
 PYTORCH_MPS_HIGH_WATERMARK_RATIO=0.0 caffeinate -i "$(python -c 'import sys; print(sys.executable)')" -m src.train_unet
 ```
+
+## Running Evaluation
+```
+python -m src.eval
+```

@@ -10,7 +10,7 @@ from src.models.unet2d import UNet2D
 from src.models.physics_loss import PhysicsInformedLoss
 
 
-def load_config(config_path: str = "configs/train_config.json") -> dict:
+def load_config(config_path: str = "configs/train_config.json"):
     path = Path(config_path)
     with open(path, "r") as f:
         return json.load(f)
