@@ -4,35 +4,40 @@ This project uses the [ERA5](https://cds.climate.copernicus.eu/datasets/reanalys
 
 ## Installing Dependencies
 ```bash
-pip install "numpy<2.0" copernicusmarine cdsapi chardet python-dotenv xarray netCDF4 scipy dask torch torchvision torchaudio
+pip install "numpy<2.0" copernicusmarine cdsapi chardet python-dotenv xarray netCDF4 scipy dask torch torchvision torchaudio matplotlib
 ```
 
 ## Downloading the Datasets
-```python
+```
 python scripts/download_dataset.py
 ```
 
 ## Processing the Datasets
-```python
+```
 python scripts/process_data.py
 ```
 
 ## Running a Mock Test
-```python
+```
 python -m tests.REPLACE_WITH_TEST_NAME
 ```
 
 ## Running Swin-Transformer Training
-```python
+```
 PYTORCH_MPS_HIGH_WATERMARK_RATIO=0.0 caffeinate -i "$(python -c 'import sys; print(sys.executable)')" -m src.train
 ```
 
 ## Running Baseline Training
-```python
+```
 PYTORCH_MPS_HIGH_WATERMARK_RATIO=0.0 caffeinate -i "$(python -c 'import sys; print(sys.executable)')" -m src.train_unet
 ```
 
 ## Running Evaluation
 ```
 python -m src.eval
+```
+
+## Running Visualization & Generating Reports
+```
+python -m src.visualize
 ```
